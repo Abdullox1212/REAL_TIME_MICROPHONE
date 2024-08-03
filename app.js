@@ -1,20 +1,48 @@
 const toggleButton = document.getElementById('toggleButton');
+const microphoneSelect = document.getElementById('microphoneSelect');
+const speakerSelect = document.getElementById('speakerSelect');
 
 let audioContext;
 let microphone;
 let processor;
 let isStarted = false;
 
-toggleButton.addEventListener('click', async () => {
-    if (!isStarted) {
-        // Start the audio processing
+async function getDevices() {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const microphones = devices.filter(device => device.kind === 'audioinput');
+    const speakers = devices.filter(device => device.kind === 'audiooutput');
+
+    microphones.forEach((mic, index) => {
+        const option = document.createElement('option');
+        option.value = mic.deviceId;
+        option.text = mic.label || `Microphone ${index + 1}`;
+        microphoneSelect.appendChild(option);
+    });
+
+    speakers.forEach((speaker, index) => {
+        const option = document.createElement('option');
+        option.value = speaker.deviceId;
+        option.text = speaker.label || `Speaker ${index + 1}`;
+        speakerSelect.appendChild(option);
+    });
+}
+
+async function startAudioProcessing() {
+    try {
+        // Create audio context
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
-        // Request microphone permission
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Get the selected microphone ID
+        const micId = microphoneSelect.value;
+        const constraints = { audio: { deviceId: micId ? { exact: micId } : undefined } };
+
+        // Request microphone access
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+        // Create media stream source
         microphone = audioContext.createMediaStreamSource(stream);
 
-        // Create an AudioProcessor
+        // Create script processor
         processor = audioContext.createScriptProcessor(1024, 1, 1);
         processor.onaudioprocess = (event) => {
             const inputBuffer = event.inputBuffer;
@@ -37,6 +65,15 @@ toggleButton.addEventListener('click', async () => {
         // Update button state
         toggleButton.textContent = 'Stop';
         isStarted = true;
+    } catch (error) {
+        console.error('Error accessing microphone:', error);
+        alert('Error accessing microphone: ' + error.message);
+    }
+}
+
+toggleButton.addEventListener('click', async () => {
+    if (!isStarted) {
+        await startAudioProcessing();
     } else {
         // Stop the audio processing
         microphone.disconnect();
@@ -48,3 +85,5 @@ toggleButton.addEventListener('click', async () => {
         isStarted = false;
     }
 });
+
+getDevices();
